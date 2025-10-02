@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Klasifikasi Tumor Otak</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <div class="container" id="mainContainer">
+        <div class="left-column">
+            <h2>Brain Tumor MRI Classification</h2>
+
+            <div class="upload-section">
+                <input type="file" id="imageUpload" accept="image/*">
+                <label for="imageUpload" class="upload-button">Upload MRI Scans</label>
+            </div>
+
+            <div class="image-preview-container">
+                <img id="imagePreview" src="#" alt="Pratinjau Gambar" class="hidden">
+                <p id="placeholderText">MRI Scans Preview</p>
+            </div>
+
+            <button id="classifyButton" disabled>Classify</button>
+        </div>
+
+        <div class="right-column" id="resultsColumn">
+            <div class="results-section">
+                <h2>Prediction Result:</h2>
+                <p>Class: <span id="predictionResult"></span></p>
+                <p>Probability: <span id="probabilityResult"></span></p>
+                <div class="class-probabilities">
+                    <h3>Probability others:</h3>
+                    <ul id="classProbabilitiesList"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="loadingSpinner" class="spinner hidden"></div>
+        <p id="errorMessage" class="error-message hidden"></p>
+    </div>
+
+    <script>
+        const imageUpload = document.getElementById('imageUpload');
+        const imagePreview = document.getElementById('imagePreview');
+        const placeholderText = document.getElementById('placeholderText');
+        const classifyButton = document.getElementById('classifyButton');
+        const resultsColumn = document.getElementById('resultsColumn'); // Mengambil kolom kanan
+        const resultsSection = document.getElementById('resultsSection'); // Hasil yang sebenarnya
+        const predictionResult = document.getElementById('predictionResult');
+        const probabilityResult = document.getElementById('probabilityResult');
+        const classProbabilitiesList = document.getElementById('classProbabilitiesList');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const errorMessage = document.getElementById('errorMessage');
+        const mainContainer = document.getElementById('mainContainer'); // Untuk class 'results-visible'
+
+        let uploadedFile = null;
+
+        imageUpload.addEventListener('change', function(event) {
+            uploadedFile = event.target.files[0];
+            if (uploadedFile) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    imagePreview.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                    placeholderText.classList.add('hidden');
+                    classifyButton.disabled = false;
+                    // Sembunyikan hasil dan error jika ada gambar baru diupload
+                    resultsColumn.classList.add('hidden'); // Sembunyikan seluruh kolom kanan
+                    mainContainer.classList.remove('results-visible'); // Hapus class visual
+                    errorMessage.classList.add('hidden');
+                };
+                reader.readAsDataURL(uploadedFile);
+            } else {
+                imagePreview.src = "#";
+                imagePreview.classList.add('hidden');
+                placeholderText.classList.remove('hidden');
+                classifyButton.disabled = true;
+                resultsColumn.classList.add('hidden'); // Sembunyikan kolom kanan
+                mainContainer.classList.remove('results-visible');
+            }
+        });
+
+        classifyButton.addEventListener('click', async function() {
+            if (!uploadedFile) {
+                alert('Silakan unggah gambar terlebih dahulu!');
+                return;
+            }
+
+            loadingSpinner.classList.remove('hidden');
+            errorMessage.classList.add('hidden');
+            resultsColumn.classList.add('hidden'); // Sembunyikan kolom kanan saat proses
+            mainContainer.classList.remove('results-visible');
+
+            const formData = new FormData();
+            formData.append('file', uploadedFile);
+
+            try {
+                const response = await fetch('/upload_and_predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    predictionResult.textContent = data.prediction;
+                    probabilityResult.textContent = data.probability;
+
+                    classProbabilitiesList.innerHTML = '';
+                    for (const className in data.class_probabilities) {
+                        const listItem = document.createElement('li');
+                        listItem.textContent = `${className}: ${data.class_probabilities[className]}`;
+                        classProbabilitiesList.appendChild(listItem);
+                    }
+
+                    resultsColumn.classList.remove('hidden'); // Tampilkan seluruh kolom kanan
+                    mainContainer.classList.add('results-visible'); // Tambahkan class visual untuk tampilan
+                } else {
+                    errorMessage.textContent = data.error || 'Terjadi kesalahan saat klasifikasi.';
+                    errorMessage.classList.remove('hidden');
+                    resultsColumn.classList.add('hidden'); // Pastikan kolom kanan tetap tersembunyi jika ada error
+                    mainContainer.classList.remove('results-visible');
+                }
+            } catch (error) {
+                errorMessage.textContent = `Error jaringan: ${error.message}`;
+                errorMessage.classList.remove('hidden');
+                resultsColumn.classList.add('hidden');
+                mainContainer.classList.remove('results-visible');
+            } finally {
+                loadingSpinner.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+
+</html>
